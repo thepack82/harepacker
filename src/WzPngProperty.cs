@@ -349,6 +349,19 @@ public class WzPngProperty : WzImageProperty
         {
             MemoryStream memStream = new MemoryStream();
             WzBinaryWriter writer = new WzBinaryWriter(memStream, WzTool.GetIvByMapleVersion(WzMapleVersion.GMS));
+            if (compressedBytes.Length > writer.WzKey.Length) {
+                //Mob.wz/9300180 is the only node where this is true
+                for (int i = 0; i < compressedBytes.Length; i += writer.WzKey.Length) {
+                    int blocksize = Math.Min(compressedBytes.Length - i, writer.WzKey.Length);
+                    writer.Write(blocksize);
+                    for (int j = 0; j < blocksize; j++) {
+                      writer.Write((byte)(compressedBytes[i + j] ^ writer.WzKey[j]));
+                    }
+                }
+                compressedBytes = memStream.GetBuffer();
+                writer.Close();
+                return;
+            }
             writer.Write(2);
             for (int i = 0; i < 2; i++)
             {

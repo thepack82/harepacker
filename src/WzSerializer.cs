@@ -530,16 +530,16 @@ public class WzXmlDeserializer : ProgressingWzSerializer
             foreach (XmlElement subelement in mainElement)
             {
                 if (subelement.Name == "wzdir")
-                    result.Add(ParseXMLWzDir(subelement));
+                    result.Add(ParseXMLWzDir(subelement, null));
                 else if (subelement.Name == "wzimg")
-                    result.Add(ParseXMLWzImg(subelement));
+                    result.Add(ParseXMLWzImg(subelement, null));
                 else throw new InvalidDataException("unknown XML prop " + subelement.Name);
             }
         }
         else if (mainElement.Name == "imgdir")
         {
             total = 1;
-            result.Add(ParseXMLWzImg(mainElement));
+            result.Add(ParseXMLWzImg(mainElement, null));
             curr++;
         }
         else throw new InvalidDataException("unknown main XML prop " + mainElement.Name);
@@ -559,26 +559,27 @@ public class WzXmlDeserializer : ProgressingWzSerializer
         return result;
     }
 
-    internal WzDirectory ParseXMLWzDir(XmlElement dirElement)
+    internal WzDirectory ParseXMLWzDir(XmlElement dirElement, WzObject parent)
     {
         WzDirectory result = new WzDirectory(dirElement.GetAttribute("name"));
+        result.Parent = parent;
         foreach (XmlElement subelement in dirElement)
         {
             if (subelement.Name == "wzdir")
-                result.AddDirectory(ParseXMLWzDir(subelement));
+                result.AddDirectory(ParseXMLWzDir(subelement, result));
             else if (subelement.Name == "wzimg")
-                result.AddImage(ParseXMLWzImg(subelement));
+                result.AddImage(ParseXMLWzImg(subelement, result));
             else throw new InvalidDataException("unknown XML prop " + subelement.Name);
         }
         return result;
     }
 
-    internal WzImage ParseXMLWzImg(XmlElement imgElement)
+    internal WzImage ParseXMLWzImg(XmlElement imgElement, WzObject parent)
     {
         string name = imgElement.GetAttribute("name");
         WzImage result = new WzImage(name);
         foreach (XmlElement subelement in imgElement)
-            result.WzProperties.Add(ParsePropertyFromXMLElement(subelement));
+            result.WzProperties.Add(ParsePropertyFromXMLElement(subelement, result));
         result.Changed = true;
         if (this.useMemorySaving)
         {
@@ -589,39 +590,46 @@ public class WzXmlDeserializer : ProgressingWzSerializer
             result.Dispose();
             result = imgDeserializer.WzImageFromIMGFile(path, iv, name);
         }
+        result.Parent = parent;
         return result;
     }
 
-    internal WzImageProperty ParsePropertyFromXMLElement(XmlElement element)
+    internal WzImageProperty ParsePropertyFromXMLElement(XmlElement element, WzObject parent)
     {
         switch (element.Name)
         {
             case "imgdir":
                 WzSubProperty sub = new WzSubProperty(element.GetAttribute("name"));
+                sub.Parent = parent;
                 foreach (XmlElement subelement in element)
-                    sub.AddProperty(ParsePropertyFromXMLElement(subelement));
+                    sub.AddProperty(ParsePropertyFromXMLElement(subelement, sub));
                 return sub;
             
             case "canvas":
                 WzCanvasProperty canvas = new WzCanvasProperty(element.GetAttribute("name"));
+                canvas.Parent = parent;
                 if (!element.HasAttribute("basedata")) throw new NoBase64DataException("no base64 data in canvas element with name " + canvas.Name);
                 canvas.PngProperty = new WzPngProperty();
                 MemoryStream pngstream = new MemoryStream(Convert.FromBase64String(element.GetAttribute("basedata")));
                 canvas.PngProperty.SetPNG((Bitmap)Image.FromStream(pngstream, true, true));
+                canvas.PngProperty.Parent = canvas;
                 foreach (XmlElement subelement in element)
-                    canvas.AddProperty(ParsePropertyFromXMLElement(subelement));
+                    canvas.AddProperty(ParsePropertyFromXMLElement(subelement, canvas));
                 return canvas;
             
             case "int":
                 WzIntProperty compressedInt = new WzIntProperty(element.GetAttribute("name"), int.Parse(element.GetAttribute("value"), formattingInfo));
+                compressedInt.Parent = parent;
                 return compressedInt;
             
             case "double":
                 WzDoubleProperty doubleProp = new WzDoubleProperty(element.GetAttribute("name"), double.Parse(element.GetAttribute("value"), formattingInfo));
+                doubleProp.Parent = parent;
                 return doubleProp;
             
             case "null":
                 WzNullProperty nullProp = new WzNullProperty(element.GetAttribute("name"));
+                nullProp.Parent = parent;
                 return nullProp;
             
             case "sound":
@@ -630,36 +638,44 @@ public class WzXmlDeserializer : ProgressingWzSerializer
                     int.Parse(element.GetAttribute("length")), 
                     Convert.FromBase64String(element.GetAttribute("basehead")), 
                     Convert.FromBase64String(element.GetAttribute("basedata")));
+                sound.Parent = parent;
                 return sound;
             
             case "string":
                 WzStringProperty stringProp = new WzStringProperty(element.GetAttribute("name"), element.GetAttribute("value"));
+                stringProp.Parent = parent;
                 return stringProp;
 
             case "short":
                 WzShortProperty shortProp = new WzShortProperty(element.GetAttribute("name"), short.Parse(element.GetAttribute("value"), formattingInfo));
+                shortProp.Parent = parent;
                 return shortProp;
 
             case "long":
                 WzLongProperty longProp = new WzLongProperty(element.GetAttribute("name"), long.Parse(element.GetAttribute("value"), formattingInfo));
+                longProp.Parent = parent;
                 return longProp;
 
             case "uol":
                 WzUOLProperty uol = new WzUOLProperty(element.GetAttribute("name"), element.GetAttribute("value"));
+                uol.Parent = parent;
                 return uol;
 
             case "vector":
                 WzVectorProperty vector = new WzVectorProperty(element.GetAttribute("name"), new WzIntProperty("x", Convert.ToInt32(element.GetAttribute("x"))), new WzIntProperty("y", Convert.ToInt32(element.GetAttribute("y"))));
+                vector.Parent = parent;
                 return vector;
 
             case "float":
                 WzFloatProperty floatProp = new WzFloatProperty(element.GetAttribute("name"), float.Parse(element.GetAttribute("value"), formattingInfo));
+                floatProp.Parent = parent;
                 return floatProp;
 
             case "extended":
                 WzConvexProperty convex = new WzConvexProperty(element.GetAttribute("name"));
+                convex.Parent = parent;
                 foreach (XmlElement subelement in element)
-                    convex.AddProperty(ParsePropertyFromXMLElement(subelement));
+                    convex.AddProperty(ParsePropertyFromXMLElement(subelement, convex));
                 return convex;
         }
         throw new InvalidDataException("unknown XML prop " + element.Name);
